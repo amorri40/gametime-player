@@ -5,49 +5,298 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="index.css">
   <title>gametime-player</title>
+  <style>
+  textarea {
+    width: 300px;
+    height: 100%;
+    min-height: 1000px;
+  }
+  </style>
 </head>
 <body>
-  <div class="draghint hidden screen" id="draghint">
-    <input type="file" id="chooser" class="chooser"/>
-    <div class="dragtext">
-      <h1>drag a game here to play</h1>
-    </div>
+  <div style='width:50%;float:left'>
+      <div class="draghint hidden screen" id="draghint">
+        <input type="file" id="chooser" class="chooser"/>
+        <div class="dragtext">
+          <h1>drag a game here to play</h1>
+        </div>
+      </div>
+      <div id="loading" class="message screen"><h1>loading ...</h1></div>
+      <div id="error" class="message hidden screen">
+        <h1>error!</h1>
+        <p>quit and reopen to try again</p>
+      </div>
+      <div id="overlay" class="overlay"></div>
+      <div class="menu hidden screen" id="menu">
+        <input type="file" id="savechooser" class="chooser"/>
+        <div class="options">
+          <h1>Your game is paused.</h1>
+          <button id="resume" class="resume">resume</button>
+          <button id="reset" class="reset">reset</button>
+          <button id="save" class="save">save game</button>
+          <button id="load" class="load">load save</button>
+          <button id="mute" class="mute">mute</button>
+        </div>
+        <div>
+          <h1>Controls:</h1>
+          <div>A button = A key</div>
+          <div>B button = B key</div>
+          <div>X button = X key</div>
+          <div>Y button = Y key</div>
+          <div>L button = L key</div>
+          <div>R button = R key</div>
+          <div>D-pad = arrow keys</div>
+        </div>
+        <div>
+          <h1>Core Info:</h1>
+          <pre id="core-name"></pre>
+          <pre id="system-info"></pre>
+          <pre id="av-info"></pre>
+        </div>
+      </div>
   </div>
-  <div id="loading" class="message screen"><h1>loading ...</h1></div>
-  <div id="error" class="message hidden screen">
-    <h1>error!</h1>
-    <p>quit and reopen to try again</p>
-  </div>
-  <div id="overlay" class="overlay"></div>
-  <div class="menu hidden screen" id="menu">
-    <input type="file" id="savechooser" class="chooser"/>
-    <div class="options">
-      <h1>Your game is paused.</h1>
-      <button id="resume" class="resume">resume</button>
-      <button id="reset" class="reset">reset</button>
-      <button id="save" class="save">save game</button>
-      <button id="load" class="load">load save</button>
-      <button id="mute" class="mute">mute</button>
-    </div>
-    <div>
-      <h1>Controls:</h1>
-      <div>A button = A key</div>
-      <div>B button = B key</div>
-      <div>X button = X key</div>
-      <div>Y button = Y key</div>
-      <div>L button = L key</div>
-      <div>R button = R key</div>
-      <div>D-pad = arrow keys</div>
-    </div>
-    <div>
-      <h1>Core Info:</h1>
-      <pre id="core-name"></pre>
-      <pre id="system-info"></pre>
-      <pre id="av-info"></pre>
-    </div>
+  <div style='width:50%; float:right;'>
+    <textarea id='output'>
+    var looking_for=400; retro.core.HEAP16.forEach(function(value,index) {if (value == looking_for) {retro.core.HEAP16[index] = value; console.log(index,'was ',looking_for);} })
+
+    cart header is located at: 2705228
+    </textarea>
   </div>
   <script src="jspm_packages/system.js"></script>
   <script src="config.js"></script>
-  <script>System.import('./index.coffee!')</script>
+  <script>System.import('./index.js')</script>
+
+  <script   src="https://code.jquery.com/jquery-3.1.0.min.js"   integrity="sha256-cCueBR6CsyA4/9szpPfrX3s49M9vUU5BgtiJj06wt/s="   crossorigin="anonymous"></script>
+
+  <script>
+
+  
+  function initial_search (looking_for) { 
+    var memory_to_search = retro.core.serialize(); //retro.core.HEAPU16
+    window.search_result_addresses=[];
+    memory_to_search.forEach(function(value,index) {
+      if (value == looking_for) {
+        //retro.core.HEAP16[index] = value; 
+        window.search_result_addresses.push(index); 
+        console.log(index,'was ',looking_for);} 
+      }) 
+  }
+  function sub_search(new_value) {
+    var memory_to_search = retro.core.serialize(); //retro.core.HEAPU16
+    window.search_result_addresses.forEach(function(address) {
+        console.log(address, memory_to_search[address], memory_to_search[address].toString(16));
+    })
+}
+
+// 
+// retro.core.get_memory_data(2); - is the loaded Memory bank (32kb)
+// 
+// retro.core.serialize() - 50kb
+// 
+
+var cart_header = 2705228*2;
+
+
+
+    function get_value() {
+      retro.stop();
+      $('#output').value = '';
+
+      // 
+      // Emscripten info
+      // 
+
+      var total_bytes = retro.core.HEAP8.length;
+      var total_kb = total_bytes/1024;
+      var total_mb = total_kb/1024;
+      console.log('Total heap:',total_bytes,'bytes',total_kb,'kb',total_mb,'mb');
+
+      // 
+      // # Memory info on device
+      // 
+      var system_ram = retro.core._retro_get_memory_size(retro.core.MEMORY_SYSTEM_RAM);
+      console.log("System ram:",system_ram, 'bytes')
+      var video_ram = retro.core._retro_get_memory_size(retro.core.MEMORY_VIDEO_RAM);
+      console.log("Video ram:",video_ram, 'bytes')
+
+    // 
+    // # Memory info on cart
+    // 
+      var save_ram_on_cart = retro.core._retro_get_memory_size(retro.core.MEMORY_SAVE_RAM);
+      console.log("Cart save ram:",save_ram_on_cart, 'bytes')
+      var clock_rtc_ram_on_cart = retro.core._retro_get_memory_size(retro.core.MEMORY_RTC);
+      console.log("Cart clock rtc ram:",clock_rtc_ram_on_cart, 'bytes')
+
+      var memory_snapshot = retro.core.serialize();//retro.core.get_memory_data(2);//retro.core.serialize();
+      var start_offset_in_memory = 0;//0x0FDD; //0x0100;//cart_header + 0x0CDE;//0x7AC3; //cart header is at 2705228*2
+      var number_of_bytes_to_display = 1024 *50;
+      
+      
+      for (var i=0; i<memory_snapshot.length-start_offset_in_memory; i++)
+      {
+        var byte_value = memory_snapshot[start_offset_in_memory+i].toString(16);
+        // memory_snapshot[start_offset_in_memory+i]=255;
+        $('#output').value +=byte_value+' ';
+      }
+      memory_snapshot[0x0FDE] = 0x05;
+      retro.core.unserialize(new Uint8Array(memory_snapshot) );
+      retro.start();
+    }
+    window.get_value = get_value;
+
+    window.printHex = function(memory_snapshot, start_offset_in_memory, number_of_bytes_to_display) {
+        var total_string = "";
+        
+        for (var i=0; i<memory_snapshot.length-start_offset_in_memory; i++)
+        {
+          var byte_value = memory_snapshot[start_offset_in_memory+i].toString(16);
+          // memory_snapshot[start_offset_in_memory+i]=255;
+           total_string+=byte_value+' ';
+        }
+        $('#output').val(total_string);//.value = total_string;
+        // console.log(total_string);
+    }
+
+    // 
+    // 
+    // 
+    window._16kb = (16*1024); 
+
+    window.printRomBank = function(rombank) {
+      // 
+      // Subtrack 16kb because otherwise the pointer will point to the END of the first romdata rather than at the start
+      // 
+      var rombank_offset_in_mem = window.romdata_pointer + (rombank * window._16kb) - window._16kb;
+      var cart_offset = rombank_offset_in_mem-window.romdata_pointer;
+      console.log("Printing ROM bank:",rombank,"Cart offset:",cart_offset,"Mem Offset:",rombank_offset_in_mem);
+      window.printHex(retro.core.HEAPU8, rombank_offset_in_mem, window._16kb);
+    }
+
+    // 
+    // # Emscripten callbacks 
+    //
+
+    window.rombanks={}
+    window.cycleRuns={}
+    window.opcodes={}
+    window.pc_addresses={}
+    window.memory_reads={}
+    window.romdata_pointer=0;
+    window.changeable_reads={}
+    window.written_memory={}
+    // 
+    // # rom_bank1_addresses hold the emscirpten heap address of each rom bank
+    // 
+    window.rom_bank1_addresses={}
+    window.setRombank = function(rombank, emscripten_ram_address) { window.rombanks[rombank] = emscripten_ram_address;}
+    window.setRambank = function(enableRam, rambank, a, b) {
+      console.log("Enable RAM BANK",enableRam, rambank, a,b);
+    }
+    // 
+    // Rombank0 should be fixed
+    // 
+    window.setRombank0 = function() {
+      console.error('Rombank0 should be fixed');
+    }
+
+    // 
+    // # setRombank1 is called when rombank number 1 is switched
+    // 
+    window.setRombank1 = function(romdata_pointer, rombank_number, bank_offset, full_address) {
+      if (window.rom_bank1_addresses[rombank_number] !== full_address)
+        {
+          window.rom_bank1_addresses[rombank_number] = full_address; 
+          // window.romdata_pointer = romdata_pointer;
+          console.log("Switched RomBank1 to:", rombank_number, "Address in Emscripten:", full_address, "Start address of all Rom banks:",romdata_pointer, "Bank Offset:",bank_offset);
+        }
+    }
+    
+    window.resetPointers = function(rombanks,rambanks, wrambanks, romdata_pointer, rombank1_pointer, rambankdata_, wramdata_0, wramdataend_,rdisabledRamw) {
+      console.log('ReSet Pointers', romdata_pointer, 'Rom banks:',rombanks, 'Cartridge Ram Banks:',rambanks, 'Working RAM banks:', wrambanks);
+      window.romdata_pointer = romdata_pointer;
+    }
+
+    window.romWrite = function($0, $1, $2) {}
+    window.runForLog = function(cycles) {
+       window.cycleRuns[cycles] = true;
+    }
+
+    window.refreshPalettes=function(bgPalette) {}
+    // 
+    // reset CC seems to be done on every writeState serialise
+    // 
+    window.resetCC = function(oldcc, newcc) {
+      // window.rombanks={};
+      // window.opcodes_at_reset = JSON.stringify(window.opcodes);//$.extend({}, window.opcodes);
+      window.opcodes={};
+      // console.log('resetCC old CC:',$0,$1)
+    }
+    window.loadRomInfo = function(a,b,c) {console.log('rominfo',a,b,c)}
+    window.speedChange = function(a,b,c) {console.log('speedChnage',a,b,c)}
+    window.setGameShark= function(address, value) {}
+    window.cpuSaveState = function(cycleCounter_, pc_, stackPointer, accumulator, b, c,d,e,hf2, carryFlag, zeroFlag,h,l,skip_) {
+      // console.log("cpuSaveState", pc_);
+    }
+    window.memHalted = function() {}
+    window.opcode = function(opcode, address) {
+      // window.opcodes[opcode] =window.opcodes[opcode]+1 || 1 ;
+      //window.pc_addresses[address] = opcode;
+    }
+
+    
+
+    // 
+    // # Need to get rombank by checking the ram start address of this memory address
+    //  and then subtrack it from the know start of the rom data.
+    //  and finally divide by 16Kb to get the rombank number
+    //  Adding one to make sure it has the same value as setRomBank
+    // 
+    window.calculate_rom_bank = function(first_address_in_current_rom_bank) {
+      var rombank = ((first_address_in_current_rom_bank-window.romdata_pointer) / window._16kb)+1;
+      return rombank;
+    }
+
+    window.emscripten_ram_pointer_to_gb_rom_address = function(emscripten_address) {
+      return emscripten_address-window.romdata_pointer;
+    }
+
+    var should_hook_memory = false;
+
+if (should_hook_memory) {
+    window.trivialReadMemory = function(gameboy_address,fullAddress, valueInMemory) {
+      
+      // var rombank = window.calculate_rom_bank(ram_start_of_gameboy_cart_data);
+      var calculated_gb_address = window.emscripten_ram_pointer_to_gb_rom_address(fullAddress);
+
+      if (calculated_gb_address in window.memory_reads) {
+        if (window.memory_reads[calculated_gb_address] !== valueInMemory.toString(16)) {
+            // console.log('Value did change')
+            window.changeable_reads[calculated_gb_address] = true;
+        }
+        return;
+      }
+      window.memory_reads[calculated_gb_address] = valueInMemory.toString(16);
+    }
+
+    // 
+    // Writes to Internal Working RAM (8Kb - 8192bytes)
+    //  0xC000 -> 0xDFFF
+    //  49152 -> 57343
+    // 
+    window.trivialWriteMemory = function(gameboy_address,fullAddress, valueInMemory, dataToWrite) { 
+        if (valueInMemory === dataToWrite) return;
+        window.written_memory[gameboy_address]=[valueInMemory,dataToWrite];
+    }
+
+}
+else {
+  window.trivialReadMemory = window.trivialWriteMemory  = function() {}
+}
+
+
+
+</script>
+
+
 </body>
 </html>
